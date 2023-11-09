@@ -57,3 +57,4 @@ RETLW B'10011000' ;"9"
 CLRF CUENTA ;ponemos a 0 de nuevo
 RETLW B'11000000' ;"0"
 end
+;prueba
