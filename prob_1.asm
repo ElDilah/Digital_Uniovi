@@ -18,4 +18,4 @@ NOSOLTO BTFSS PORTA,4
     GOTO NOSOLTO    ; 0 = sigue pulsado
     GOTO MIRA   ; 1 = ya solto
 END
-;PEUWB
+;otra pruebaas
