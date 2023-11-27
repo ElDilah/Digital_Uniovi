@@ -93,7 +93,7 @@ BUCLE
     GOTO CON_MIN ;SI 
 CON_MIN movlw 	b'11111101'	;Activamos el display de la izquierda
  	movwf 	PORTA		;con RA1 a 0 y resto a 1
-     movf 	MINUTOS,W     	;se cargan en W el contenido a mostrar en el display izquierdo 
+    movf 	MINUTOS,W     	;se cargan en W el contenido a mostrar en el display izquierdo 
     call  	TABLA_U     	;y se llama al subprograma que controla los 7 diodos led
     MOVWF PORTD     ;SE MUESTRA EL VALOR
     BSF PORTD,7 ;PONER EL PUNTO 
@@ -134,6 +134,7 @@ SIN_MIN movlw 	b'11111101'	;Activamos el display de la izquierda
     GOTO ESTADO_0 ;RESETEADO
     GOTO ESTADO_1 ;PARADO
     GOTO ESTADO_2 ;CUENTA
+;_______________________________Estado 0 -> reseteado _______________________________
 
 ;_____________________________ ZONA PARA LA PARTE DE LAS LLAMADAS____________________
 ESPERA	MOVLW	d'217'		;precargamos el valor de TMR0
@@ -146,3 +147,5 @@ DESBORDO_T0
     movlw 0xFF		;Apagamos todos los segmentos
 	movwf PORTD		;para establecer un tiempo muerto antes de cambiar
 	return			;Si ya se puso a 1, retornamos (pasaron ya 5 ms)
+
+
