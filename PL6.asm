@@ -13,27 +13,48 @@ ORG 0x4
     MOVF PCLATH,W 
     MOVWF PCLATH_TMP ;SALVAR PCLATH
     ;---------------- SALVAR CONTEXTO ------------------------
-    BTFSS PIR1,TMR1IF
-        GOTO ;1 DESBORDO TMR1 
-     
-;CRONOMETRO
+    BTFSC PIR1,TMR1IF
+        GOTO INT_T1;1 DESBORDO TMR1 
+    BTFSS PIR1,TMR2IF ;COMPROBAR TMR2
+    GOTO RECUPERA
+INT_T2
+    bcf	PIR1,TMR2IF	;ponemos el flag TMR2IF a 0
+	incf	DESBORDA_TMR2	;incrementamos el contador de desbordamientos
+	goto	RECUPERAR	;y vamos a recuperar el contexto
+INT_T1
+    MOVWF 0x2C		;Precargamos la parte baja de TMR1: TMR1L
+	movwf	TMR1L		;con 0x2C
+	movlw	0xCF		;Precargamos la parte alta: TMR1H
+	movwf	TMR1H		;con 0xCF CREANDO UNA CUENTA DE 100ms 
+    CALL RESTA 
+FINAL BCF PIR1,TMR1IF   ;FINALMENTE QUITAMOS EL FLAG PARA NO VOLVER A ENTRAR A LA INTERRUPCION
+;---------------------RECUPERAR CONTEXTO----------------------
+RECUPERAR
+	movf	PCLATH_TMP,W	;Recuperamos PCLATH
+	movwf	PCLATH
+	swapf 	STATUS_TMP,W 	;Recuperamos el registro STATUS con un SWAPF
+        movwf 	STATUS
+	swapf 	W_TMP,F		;Recuperamos tambi�n el W con dos SWAPF
+	swapf 	W_TMP,W
+        retfie  ;VOLVEMOS DE LA INTERRUPCION
+
+
 ;ASIGNACION
 CBLOCK 0x20
-    UNIDADES 
-    MINUTOS 
-    DECENAS
-    MILESIMAS
-    ESTADO 
-    RE_E1
-    DESBORDO_T0 
-    DESBORDO_T1 
-    DESBORDO_T3 
+     UNIDADES 
+     MINUTOS 
+     DECENAS
+     MILESIMAS
+     ESTADO 
+     RE_E1
+     DESBORDO_T0 
+     DESBORDO_T1 
+     DESBORDO_T2 
     ;GUARDADO DE CONTEXTO
-    W_TMP  
-    ANTESA ;YA QUE RP4 NO TIENE FLAG CON LO CUAL LA UNICA FORMA DE SABER SI SE HA 
-    STATUS_TMP 
-    PCLATH_TMP 
-ENDC 
+     W_TMP  
+     STATUS_TMP 
+     PCLATH_TMP 
+    ENDC 
 ;COFIGURACION 
 ;BANCO 1
  BSF STATUS,RP0  ;CAMBIO A BANCO 1 
@@ -91,7 +112,7 @@ RETLW B'11000000' ;"0"
 BUCLE 
 MOVF PORTA,W ; GUARDAMOS LO QUE HAY EN PUERTO A NOS INTERESA EL VALOR DE RP4
 MOVWF ANTESA ;GUARDAMOS EL VALOR DE PORT A
-    BTFSC MINUTOS ;COMPROBACION SI HAY MINUTOS 
+    BTFSC MINUTOS,0 ;COMPROBACION SI HAY MINUTOS 
     GOTO SIN_MIN ;NO
     GOTO CON_MIN ;SI 
 CON_MIN movlw 	b'11111101'	;Activamos el display de la izquierda
@@ -112,6 +133,7 @@ CON_MIN movlw 	b'11111101'	;Activamos el display de la izquierda
     movf 	UNIDADES,W     	;CARGAR LAS DECENAS DE SEGUNDO
     call  	TABLA_U     	;y se llama al subprograma que controla los 7 diodos led
     MOVWF PORTD ;VALOR
+    CALL ESPERA
 
 SIN_MIN movlw 	b'11111101'	;Activamos el display de la izquierda
  	movwf 	PORTA		;con RA1 a 0 y resto a 1
@@ -131,6 +153,7 @@ SIN_MIN movlw 	b'11111101'	;Activamos el display de la izquierda
     movf 	MILESIMAS,W     	;CARGAR LAS DECENAS DE SEGUNDO
     call  	TABLA_U     	;y se llama al subprograma que controla los 7 diodos led
     MOVWF PORTD ;VALOR
+    CALL ESPERA
 ;-----------------------------1 PARTE MOSTRAR VALOR ---------------------------------
     MOVF ESTADO,W
     ADDWF PCL,F
@@ -167,14 +190,16 @@ ESTADO_1
     MOVWF ESTADO        ;SI ESTA PULSADO RA4 PONEMOS ESTADO 2 MARCHA
     REVISA_B0
     BTFSS INTCON,INTF ;COMPROBAR FLAG 
-    GOTO NO_PUUSADO ;NO SE HA PULSADO
+    GOTO NO_PULSADO ;NO SE HA PULSADO
     MOVF DESBORDO_T2,W  
     SUBWF D'40'
     BTFSC STATUS,Z ;COMPROBAMOS DESBORDAMIENTO
     CLRF ESTADO     ;EN CASO DE DESBORDE 
+    BCF INTCON,INTF ;BORRAR EL FLAG ANTES DE PROCEDER AL BUCLE
     GOTO BUCLE      ;BIEN SI NO SE DESBORDA O SI SE DESBORDA Y SE CAMBIA EL ESTADO
-NO PULSADO 
+NO_PULSADO 
     CLRF DESBORDO_T2
+    BCF INTCON,INTF 
     GOTO BUCLE
 ;_________________________________ESTADO 2 -> CONTANDO_______________________________
 ESTADO_2 
@@ -184,6 +209,10 @@ ESTADO_2
     GOTO BUCLE ;NO PULSADO
     MOVWF 0x01 
     MOVWF ESTADO ;PONER ESTADO 1 PARADO 
+    BSF T2CON,TMR2NO    ;ACTIVAMOS EL TMR2 PARA QUE DESBORDE SI SE MANTIENE PULSADO RB0
+    CLRF DESBORDO_T2    ;PONEMOS A 0 EL NUMERO DE VECES QUE DESBORDO TMR2
+    BCF INTCON,INTF ;BORRAR EL FLAG DE RB0 ANTES DE IR AL BUCLE
+    GOTO BUCLE  
 
 ;_____________________________ ZONA PARA LA PARTE DE LAS LLAMADAS____________________
 ESPERA	MOVLW	d'217'		;precargamos el valor de TMR0
@@ -208,4 +237,5 @@ COMP_DEC MOVWF 0x0A  ;CARGAMOS EN W EL VALOR 10
     RETURN  ; 0- NO NOS HEMOS PASADO DE 10
     INCF MINUTOS ; AÑADIMOS 1 A LAS DECENAS EN CASO DE PASARNOS 
     RETURN
-
+RESTA 
+    END 
