@@ -5,40 +5,7 @@
 ORG 0x0
     GOTO BUCLE
 ORG 0x4 
-    MOVWF W_TMP ;SALVAR W
-    SWAPF STATUS,W ;MOVER STATUS A W
-    BCF STATUS,RP0
-    BCF STATUS,RP1 ;BANCO 0 
-    MOVWF STATUS_TMP ; GUARDAR STATUS
-    MOVF PCLATH,W 
-    MOVWF PCLATH_TMP ;SALVAR PCLATH
-    ;---------------- SALVAR CONTEXTO ------------------------
-    BTFSC PIR1,TMR1IF
-        GOTO INT_T1;1 DESBORDO TMR1 
-    BTFSS PIR1,TMR2IF ;COMPROBAR TMR2
-    GOTO RECUPERA
-INT_T2
-    bcf	PIR1,TMR2IF	;ponemos el flag TMR2IF a 0
-	incf	DESBORDA_TMR2	;incrementamos el contador de desbordamientos
-	goto	RECUPERAR	;y vamos a recuperar el contexto
-INT_T1
-    MOVWF 0x2C		;Precargamos la parte baja de TMR1: TMR1L
-	movwf	TMR1L		;con 0x2C
-	movlw	0xCF		;Precargamos la parte alta: TMR1H
-	movwf	TMR1H		;con 0xCF CREANDO UNA CUENTA DE 100ms 
-    CALL RESTA 
-FINAL BCF PIR1,TMR1IF   ;FINALMENTE QUITAMOS EL FLAG PARA NO VOLVER A ENTRAR A LA INTERRUPCION
-;---------------------RECUPERAR CONTEXTO----------------------
-RECUPERAR
-	movf	PCLATH_TMP,W	;Recuperamos PCLATH
-	movwf	PCLATH
-	swapf 	STATUS_TMP,W 	;Recuperamos el registro STATUS con un SWAPF
-        movwf 	STATUS
-	swapf 	W_TMP,F		;Recuperamos tambi�n el W con dos SWAPF
-	swapf 	W_TMP,W
-        retfie  ;VOLVEMOS DE LA INTERRUPCION
-
-
+    GOTO INTERRUPCIONES
 ;ASIGNACION
 CBLOCK 0x20
      UNIDADES 
@@ -47,8 +14,6 @@ CBLOCK 0x20
      MILESIMAS
      ESTADO 
      RE_E1
-     DESBORDO_T0 
-     DESBORDO_T1 
      DESBORDO_T2 
     ;GUARDADO DE CONTEXTO
      W_TMP  
@@ -79,7 +44,7 @@ CBLOCK 0x20
     MOVLW b'01111011'	;Configuramos TMR2 con prescaler y postscaler de 16
 	MOVWF T2CON		;e inicialmente parado 
     movlw	0x2C		;Precargamos TMR1H
-	movwf	TMR1H		;puesto que est� parado TMR1
+	movwf	TMR1H		;puesto que est? parado TMR1
 	movlw	0xCF		;y cargamos TMR1L
 	movwf	TMR1L		
     movlw	b'11000000'	;Habilitamos las interrupciones con
@@ -111,7 +76,6 @@ RETLW B'11000000' ;"0"
 ;BUCLE
 BUCLE 
 MOVF PORTA,W ; GUARDAMOS LO QUE HAY EN PUERTO A NOS INTERESA EL VALOR DE RP4
-MOVWF ANTESA ;GUARDAMOS EL VALOR DE PORT A
     BTFSC MINUTOS,0 ;COMPROBACION SI HAY MINUTOS 
     GOTO SIN_MIN ;NO
     GOTO CON_MIN ;SI 
@@ -209,14 +173,15 @@ ESTADO_2
     GOTO BUCLE ;NO PULSADO
     MOVWF 0x01 
     MOVWF ESTADO ;PONER ESTADO 1 PARADO 
-    BSF T2CON,TMR2NO    ;ACTIVAMOS EL TMR2 PARA QUE DESBORDE SI SE MANTIENE PULSADO RB0
+    BSF T2CON,TMR2ON   ;ACTIVAMOS EL TMR2 PARA QUE DESBORDE SI SE MANTIENE PULSADO RB0
     CLRF DESBORDO_T2    ;PONEMOS A 0 EL NUMERO DE VECES QUE DESBORDO TMR2
     BCF INTCON,INTF ;BORRAR EL FLAG DE RB0 ANTES DE IR AL BUCLE
     GOTO BUCLE  
 
 ;_____________________________ ZONA PARA LA PARTE DE LAS LLAMADAS____________________
-ESPERA	MOVLW	d'217'		;precargamos el valor de TMR0
-	MOVWF 	TMR0		;para que desborde tras 5ms
+ESPERA	
+    MOVLW d'217'		;precargamos el valor de TMR0
+    MOVWF TMR0		;para que desborde tras 5ms
     BCF	INTCON,T0IF	;Se pone a cero el flag de TMR0
 DESBORDO_T0
     btfss	INTCON,T0IF	;Comprobamos si el flag se puso a 1
@@ -264,4 +229,37 @@ COMP_MIN
     RETURN ;NO RECUPERAR 
     CLRF ESTADO ;SI LLEGAMOS AL FINAL DE LA CUENTA PONEMOS EL ESTADO 0 
     RETURN
-    END 
+INTERRUPCIONES
+    MOVWF W_TMP ;SALVAR W
+    SWAPF STATUS,W ;MOVER STATUS A W
+    BCF STATUS,RP0
+    BCF STATUS,RP1 ;BANCO 0 
+    MOVWF STATUS_TMP ; GUARDAR STATUS
+    MOVF PCLATH,W 
+    MOVWF PCLATH_TMP ;SALVAR PCLATH
+    ;---------------- SALVAR CONTEXTO ------------------------
+    BTFSC PIR1,TMR1IF
+        GOTO INT_T1;1 DESBORDO TMR1 
+    BTFSS PIR1,TMR2IF ;COMPROBAR TMR2
+    GOTO RECUPERAR
+INT_T2
+    bcf	PIR1,TMR2IF	;ponemos el flag TMR2IF a 0
+	incf	DESBORDO_T2	;incrementamos el contador de desbordamientos
+	goto	RECUPERAR	;y vamos a recuperar el contexto
+INT_T1
+    MOVWF 0x2C		;Precargamos la parte baja de TMR1: TMR1L
+	movwf	TMR1L		;con 0x2C
+	movlw	0xCF		;Precargamos la parte alta: TMR1H
+	movwf	TMR1H		;con 0xCF CREANDO UNA CUENTA DE 100ms 
+    CALL RESTA 
+FINAL BCF PIR1,TMR1IF   ;FINALMENTE QUITAMOS EL FLAG PARA NO VOLVER A ENTRAR A LA INTERRUPCION
+;---------------------RECUPERAR CONTEXTO----------------------
+RECUPERAR
+	movf	PCLATH_TMP,W	;Recuperamos PCLATH
+	movwf	PCLATH
+	swapf 	STATUS_TMP,W 	;Recuperamos el registro STATUS con un SWAPF
+        movwf 	STATUS
+	swapf 	W_TMP,F		;Recuperamos tambi?n el W con dos SWAPF
+	swapf 	W_TMP,W
+        retfie  ;VOLVEMOS DE LA INTERRUPCION
+   END
