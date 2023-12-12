@@ -66,7 +66,7 @@ INICIO  movlw 	0xFF		;Carga inicial para el PORTA
 
 	movlw	b'00000100'	;Usamos TMR0 para temporizaciones de 5ms en el barrido
 	movwf	OPTION_REG	;con prescaler de 32, se precargar� TMR0 con d'100'
-
+	clrf TRISB			;TRIS B COMO ENTRADA
        	bcf 	STATUS,RP0    	;Volvemos al banco 0 de datos
 
 	movlw	b'11000001'	;Configuramos AD con entrada por canal anal�gico 0 (RA0)
