@@ -15,15 +15,12 @@
 		BCD0		;(DECENAS:UNIDADES)
 		BCD1		;(MILLARES:CENTENAS)
 		BCD2		;(0:DECENAS DE MIL)
-		BCD0_MIN		;(DECENAS:UNIDADES)
-		BCD1_MIN		;(MILLARES:CENTENAS)
-		BCD2_MIN		;(0:DECENAS DE MIL)
-		BCD0_MAX		;(DECENAS:UNIDADES)
-		BCD1_MAX		;(MILLARES:CENTENAS)
-		BCD2_MAX		;(0:DECENAS DE MIL)Ç
-    ; D�gitos a mostrar en los displays, los emplea el subprograma de barrido
 		DSP_H		; (0:D�gito izquierdo)
-		DSP_L		; (D�gito centro: D�gito derecho)
+		DSP_H_MAX
+		DSP_H_MIN
+		DSP_L	
+		DSP_L_MAX
+		DSP_L_MIN
     ;Posiciones necesarias para el subprograma que realiza el producto 
 		FACTOR1		;Uno de los factores del producto
 		FACTOR2		;Otro de los factores del subprograma producto
@@ -95,6 +92,7 @@ ESTADO_0
         movwf   DSP_H		;primero la parte alta con el d�gito de voltios
         movf    BCD1,W		;y ahora la parte baja con las d�cimas
         movwf   DSP_L		;y las cent�simas
+		CALL COMPROBAR_MAXMIN
         call    BARRIDO_DSP	;Llamamos ahora al subprograma que realiza un barrido completo
 	goto  	BUCLE
 
@@ -147,6 +145,120 @@ BARRIDO_DSP			;Entramos en el subprograma de barrido de displays
 	movwf	PORTD		;nuevo t.muerto
         return                  ;Retorno del subprograma de barrido de displays
 
+
+COMPROBAR_MAXMIN
+		movf DSP_H,W      
+		subwf DSP_H_MAX		;RESTA DSPH DEL MAXIMMO
+		BTFSC STATUS,z 		;VERIFICAR ES ESTADO DE CARRY 
+		GOTO MOVER_ALTO			;SI C ES 0 SIGNIFICA QUE ES MENOR 
+		MOVF DSP_H,W
+		SUBWF DSP_H_MAX
+		BTFSS STATUS,C 	;ES IGUAL 
+		GOTO MOVER_BAJO	;YA QUE ES MENOR 
+		MOVF DSP_L,W 
+		SUBWF DSP_L_MAX
+		BTFSC STATUS,Z 
+		GOTO MOVER_ALTO	;EL VALOR BAJO ES MAYOR 
+		MOVF DSP_L,W
+		SUBWF DSP_L_MAX
+		BTFSS STATUS,C 	;ES IGUAL 
+		GOTO MOVER_BAJO	;YA QUE ES MENOR 
+		RETURN
+
+
+
+	
+MOVER_ALTO
+		MOVF DSP_H,W		;SI C ES 1 ES MAYOR CON LO CUAL LO MUEVO AL MAX
+		MOVWF DSP_H_MIN   
+		MOVF DSP_L,W
+		MOVWF DSP_L_MIN
+		RETURN
+MOVER_BAJO
+		MOVF DSP_H,W		;SI C ES 1 ES MAYOR CON LO CUAL LO MUEVO AL MAX
+		MOVWF DSP_H_MAX   
+		MOVF DSP_L,W
+		MOVWF DSP_L_MAX
+		RETURN
+PRODUCTO_2
+	clrf	BIN_ALTO	;Ponemos a cero el acumulador de
+	clrf	BIN_BAJO	;los resultados (en 16 bits)
+	movlw	0x08		;Cargamos 8 en el contador de operaciones
+	movwf	CONTADOR	;de rotaci�n
+	clrf	SUMA_ALTO	;Ponemos a cero parte alta del sumando que ir�
+				;recogiendo FACTOR1 desplazado
+	movf	FACTOR1,W	;Cargamos FACTOR1 en la parte baja de sumando
+	movwf	SUMA_BAJO	;para efectuar rotaciones a izq. 
+				;(multiplicar por 2 sucesivas veces FACTOR1)
+A_SUMAR	rrf	FACTOR2		;Rotamos a la derecha para comprobar
+	btfss	STATUS,C	;en el carry el valor del bit que "toque"
+	goto	OTRO_BIT	;si el carry qued� a 0 es que no hay que sumar
+	movf	SUMA_BAJO,W	;si qued� a 1 es que hay que sumar
+	addwf	BIN_BAJO,F	;la parte baja del acumulador con el sumando
+				;que corresponde al FACTOR1 desplazado a la izq.
+	btfsc	STATUS,C	;comprobamos si hubo acarreo en esa suma
+	incf	BIN_ALTO	;si hubo, sumamos 1 al siguiente byte
+	movf	SUMA_ALTO,W	;sumamos la parte alta del acumulador con
+	addwf	BIN_ALTO,F	;el FACTOR1 desplazado
+OTRO_BIT	
+	decfsz	CONTADOR,F	;Decrementamos el contador de operaciones parciales
+	goto	A_ROTAR		;si no hemos llegado a cero, seguimos rotando
+	return			;si ya hemos hecho 8 veces la operaci�n, retornamos
+
+A_ROTAR	bcf	STATUS,C	;Para rotar FACTOR1 a la izquierda, ponemos a 0 el carry
+	rlf	SUMA_BAJO,F	;rotamos encadenando la parte baja
+	rlf	SUMA_ALTO,F	;con la parte alta
+	goto	A_SUMAR		;y vamos a comprobar si es necesario sumar o no
+BINBCD  bcf     STATUS,C    	;Puesta a cero del carry
+        movlw   d'16'           ;Cargamos 16 en el contador
+        movwf   CONTADOR	;de operaciones
+        clrf    BCD2            ;Puesta a cero
+        clrf    BCD1            ;inicial de las posiciones
+        clrf    BCD0            ;finales
+
+DESPLAZAR 
+	rlf     BIN_BAJO        ;Rotaci�n total
+        rlf     BIN_ALTO        ;desde el byte bajo
+        rlf     BCD0            ;hasta el byte m�s alto
+        rlf     BCD1            ;de los datos finales
+        rlf     BCD2            ;en BCD
+
+        decfsz  CONTADOR        ;Si el contador es cero ya van 16 desplazamientos
+        goto    AJUSTE         	;si no, seguimos con el ajuste a BCD
+        return                	;si ya van 16 desplazamientos retornamos
+
+AJUSTE  movlw   BCD0            ;Empleamos direccionamiento indirecto
+        movwf   FSR             ;para llamar al subprograma de ajuste
+        call    AJBCD           ;decimal de cada byte, primero con BCD0
+
+        movlw   BCD1            ;Lo mismo con BCD1
+        movwf   FSR		;le pasamos la direcci�n a FSR
+        call	AJBCD		;y llamamos al ajuste
+
+        movlw   BCD2            ;Y lo mismo con BCD2
+        movwf   FSR		;cargando su direcci�n en FSR
+        call    AJBCD		;llamamos al ajuste a BCD
+
+        goto    DESPLAZAR       ;Volvemos a las rotaciones
+;***************************************************************************
+; Subprograma para ajuste BCD de cada byte previo a un desplazamiento
+;***************************************************************************
+AJBCD   movlw   3               ;Sumamos 3 a la posici�n a la que apunta FSR
+        addwf   INDF,W          ;el contenido queda en W
+
+        movwf   TMP             ;Exploramos si en el primer d�gito el 
+        btfsc   TMP,3           ;resultado es mayor que 7
+        movwf   INDF            ;si es as� corregimos almacenando ese valor
+
+        movlw   0x30            ;Hacemos lo mismo con el d�gito BCD superior
+        addwf   INDF,W          ;sum�ndole 3 al nibble alto
+
+        movwf   TMP             ;Exploramos sumando 30 al byte completo
+        btfsc   TMP,7           ;y si el d�gito superios es mayor que 7
+        movwf   INDF            ;lo almacenamos para corregir
+
+        return               	;Retorno desde el subprograma AJBCD
+;***************************************************************************
 INTERRUPCIONES 
 		btfss 	PIR1,ADIF 	;Si entramos aqu� por otro motivo (por error)
         retfie              	;distinto a ADIF=1 salimos de inmediato
@@ -159,8 +271,7 @@ INTERRUPCIONES
 	movf	PCLATH,W	;Salvamos tambi�n PCLATH
 	movwf	PCLATH_tmp
 ;para salvarlos no podemos emplear la instrucci�n MOVF ya que afecta al registro STATUS,
-;para evitarlo hemos empleado la instrucci�n SWAPF
-
+;para evitarlo hemos empleado la instrucci�n SWAP
 	movf	ADRESH,W	;Cargamos el resultado en W
 	movwf	FACTOR1		;y se lo pasamos a uno de los factores
 
