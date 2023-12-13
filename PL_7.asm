@@ -82,11 +82,13 @@ INICIO  movlw 	0xFF		;Carga inicial para el PORTA
         clrf 	BCD1		;Puesta a cero de d�cimas y cent�simas de V
 
 	bsf	ADCON0,GO	;Lanzamos una primera conversi�n
-BUCLE MOVF ESTADO,W
-    ADDWF PCL,F
-    GOTO ESTADO_0 ;RVALOR DIRECTO
-    GOTO ESTADO_1 ;PMINIMO
-    GOTO ESTADO_2	;MAXIMO 
+BUCLE
+		BTFSS PORTA,4   ;comprubo si se esta pulsando o no
+        GOTO ESTADO_1 ; 0 "pulsado" 
+		BTFSS INTCON,INTF    ;COMPROBAR ESTADO DE RP0
+		GOTO ESTADO_2
+		GOTO ESTADO_0 ;RVALOR DIRECTO
+		
 ESTADO_0
 	  movf    BCD2,W		;Cargamos el resultado del �ltimo c�lculo
         movwf   DSP_H		;primero la parte alta con el d�gito de voltios
@@ -95,6 +97,53 @@ ESTADO_0
 		CALL COMPROBAR_MAXMIN
         call    BARRIDO_DSP	;Llamamos ahora al subprograma que realiza un barrido completo
 	goto  	BUCLE
+
+ESTADO_1
+    MOVLW b'01101101'
+    MOVWF PORTD
+    CALL ESPERA 
+    MOVLW 0xFF
+    movwf PORTD
+    call ESPERA
+    movlw b'00111110'
+    movwf PORTD
+    call ESPERA
+    movwf 0xFF
+    MOVLW b'01110011'
+    movwf PORTD
+    call ESPERA
+    movwf 0xFF
+    CALL ESPERA_500MS ;ESPERAR PARA HACER EFECTO DE PARPADEO 
+    movf DSP_H_MAX,W
+	movwf DSP_H
+	MOVF DSP_L_MAX,W 
+	MOVWF DSP_L
+	CALL BARRIDO_DSP
+    GOTO BUCLE
+ESTADO_2
+	BCF INTCON,INTF ;QUITAR EL FLAG PARA VOLVER A DETECTAR
+	MOVLW b'00000110'
+    MOVWF PORTD
+    CALL ESPERA 
+    MOVLW 0xFF
+    movwf PORTD
+    call ESPERA
+    movlw b'01010100'
+    movwf PORTD
+    call ESPERA
+    movwf 0xFF
+    MOVLW b'01110001'
+    movwf PORTD
+    call ESPERA
+    movwf 0xFF
+    CALL ESPERA_500MS ;ESPERAR PARA HACER EFECTO DE PARPADEO 
+    movf DSP_H_MIN,W
+	movwf DSP_H
+	MOVF DSP_L_MIN,W 
+	MOVWF DSP_L
+	CALL BARRIDO_DSP
+    GOTO BUCLE
+ESPERA_500MS
 
 ESPERA	movlw	d'100'		;cargamos el registro TMR0
 	movwf	TMR0		;con la precarga de d'100'
