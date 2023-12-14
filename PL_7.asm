@@ -115,18 +115,15 @@ INICIO  movlw 	0xFF		;Carga inicial para el PORTA
         clrf 	BCD1		;Puesta a cero de d?cimas y cent?simas de V
 	bsf	T1CON,TMR1ON
 	bsf	ADCON0,GO	;Lanzamos una primera conversi?n
-	CLRF BCD1_MAX
-	CLRF BCD2_MAX
+	CLRF ADRESH_MAX
 	MOVLW 0xFF
-	MOVWF BCD1_MIN
-	MOVLW 0xFF
-	MOVWF BCD2_MIN
+	MOVWF ADRESH_MIN    	;INICIACION DE ADRESH_MAX/MIN
 ;Bucle de ejecuci?n continuo
 BUCLE
 		BTFSS PORTA,4   ;comprubo si se esta pulsando o no
-        GOTO ESTADO_1 ; 0 "pulsado" 
+		  GOTO ESTADO_1 ; 0 "pulsado" 
 		BTFSS PORTB,0    ;COMPROBAR ESTADO DE RP0
-		GOTO ESTADO_2
+		  GOTO ESTADO_2
 		GOTO ESTADO_0 ;RVALOR DIRECTO
 ESTADO_0
 	movf  BCD2,W		;Cargamos el resultado del ?ltimo c?lculo
@@ -261,7 +258,7 @@ NUEVO_VAL
 	call	BINBCD		;Llamamos al subprograma de descomposici?n en d?gitos BCD
 	CALL COMPROBAR_MAXMIN
 	bcf	PIR1,ADIF	;ponemos a cero el flag para la sig. interrupci?n
-
+	bsf	ADCON0,GO	;Lanzamos siguiente conversi?n AD (no modifica STATUS)
 RECUPERA movf	PCLATH_tmp,W	;Recuperamos PCLATH
 	movwf	PCLATH
 	swapf 	STATUS_tmp,W 	;Recuperamos el registro STATUS con un SWAPF
@@ -270,8 +267,7 @@ RECUPERA movf	PCLATH_tmp,W	;Recuperamos PCLATH
 	swapf 	W_tmp,W
 ;Para recuperar los registros salvados no podemos usar MOVF porque modifica a STATUS, 
 ;para evitarlo usamos la instrucci?n SWAPF
-	bsf	ADCON0,GO	;Lanzamos siguiente conversi?n AD (no modifica STATUS)
-	INCF CAMBIO             ;ESTA VARIABLE NOS SIRVE PARA TEMPORIZAR LOS 0,5 SEGUNDOS 
+
         retfie               	;Retorno del programa de tratamiento de
 				;la interrupci?n
 ;***************************************************************************
@@ -312,20 +308,12 @@ A_ROTAR	bcf	STATUS,C	;Para rotar FACTOR1 a la izquierda, ponemos a 0 el carry
 
 
 COMPROBAR_MAXMIN
-		movf BCD2,W      
-		subwf BCD2_MAX		;RESTA DSPH DEL MAXIMMO
+		movf ADRESH,W      
+		subwf ADRESH_MAX	;RESTA DSPH DEL MAXIMMO
 		BTFSC STATUS,Z 		;VERIFICAR ES ESTADO DE CARRY 
 		GOTO MOVER_ALTO			;SI C ES 0 SIGNIFICA QUE ES MENOR 
-		MOVF DSP_H,W
-		SUBWF DSP_H_MAX
-		BTFSS STATUS,C 	;ES IGUAL 
-		GOTO MOVER_BAJO	;YA QUE ES MENOR 
-		MOVF DSP_L,W 
-		SUBWF DSP_L_MAX
-		BTFSC STATUS,Z 
-		GOTO MOVER_ALTO	;EL VALOR BAJO ES MAYOR 
-		MOVF DSP_L,W
-		SUBWF DSP_L_MAX
+		MOVF ADRESH,W
+		SUBWF ADRESH_MIN
 		BTFSS STATUS,C 	;ES IGUAL 
 		GOTO MOVER_BAJO	;YA QUE ES MENOR 
 		RETURN
@@ -333,16 +321,16 @@ COMPROBAR_MAXMIN
 	
 
 MOVER_ALTO
-		MOVF BCD2,W		;SI C ES 1 ES MAYOR CON LO CUAL LO MUEVO AL MAX
+		MOVF BCD2 ,W	
 		MOVWF BCD2_MAX   
-		MOVF DSP_L,W
-		MOVWF DSP_L_MAX
+		MOVF BCD1,W
+		MOVWF BCD1_MAX
 		RETURN
 MOVER_BAJO
-		MOVF DSP_H,W		;SI C ES 1 ES MAYOR CON LO CUAL LO MUEVO AL MAX
-		MOVWF DSP_H_MIN   
-		MOVF DSP_L,W
-		MOVWF DSP_L_MIN
+		MOVF BCD2,W		;GUARDAR LOS NUEVOS VALORES DE MAXIMO Y MINIMO
+		MOVWF BCD2_MIN   
+		MOVF BCD1,W
+		MOVWF BCD1_MIN 
 		RETURN
 ;
 ;***************************************************************************
