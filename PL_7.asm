@@ -305,7 +305,7 @@ A_ROTAR	bcf	STATUS,C	;Para rotar FACTOR1 a la izquierda, ponemos a 0 el carry
 	rlf	SUMA_BAJO,F	;rotamos encadenando la parte baja
 	rlf	SUMA_ALTO,F	;con la parte alta
 	goto	A_SUMAR		;y vamos a comprobar si es necesario sumar o no
-
+;s
 
 COMPROBAR_MAXMIN
 		movf ADRESH,W      
